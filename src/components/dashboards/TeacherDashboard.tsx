@@ -137,57 +137,38 @@ export default function TeacherDashboard() {
     setSuccess('');
 
     try {
-      // Find the card and student
-      const { data: card, error: cardError } = await supabase
-        .from('cards')
-        .select(
-          `
-          *,
-          students (*)
-        `
-        )
-        .eq('card_uid', cardUid)
-        .single();
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          card_uid: cardUid,
+          device_code: 'DEV002', // Different device for teacher
+          gateway_code: 'CLASSROOM_01', // Classroom gateway
+          lecture_id: selectedLecture.id,
+        }),
+      });
 
-      if (cardError || !card) {
-        throw new Error('Card not found');
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (result.error === 'student_not_found') {
+          throw new Error('Student not found. Please ensure the card UID matches a registered student ID.');
+        } else if (result.error === 'already_recorded') {
+          throw new Error('Student already marked as present for this lecture');
+        } else if (result.error === 'gateway_or_device_not_found') {
+          throw new Error('Gateway or device not configured properly.');
+        } else {
+          throw new Error(result.error || 'Scan failed');
+        }
       }
 
-      const student = card.students as Student;
-
-      // Check if already attended
-      const { data: existingAttendance } = await supabase
-        .from('attendance')
-        .select('id')
-        .eq('student_id', student.id)
-        .eq('lecture_id', selectedLecture.id)
-        .single();
-
-      if (existingAttendance) {
-        throw new Error('Student already marked as present for this lecture');
-      }
-
-      // Record attendance (we'll need actual gateway and device IDs in production)
-      const { error: attendanceError } = await supabase
-        .from('attendance')
-        .insert([
-          {
-            student_id: student.id,
-            card_id: card.id,
-            lecture_id: selectedLecture.id,
-            gateway_id: selectedLecture.id, // Using lecture ID as placeholder
-            device_id: selectedLecture.id, // Using lecture ID as placeholder
-            status: 'present',
-          },
-        ]);
-
-      if (attendanceError) {
-        throw new Error('Failed to record attendance');
-      }
-
-      setSuccess(
-        `Attendance recorded for ${student.first_name} ${student.last_name}`
-      );
+      const message = result.card_created 
+        ? `New card registered and attendance recorded for ${result.student.first_name} ${result.student.last_name}`
+        : `Attendance recorded for ${result.student.first_name} ${result.student.last_name}`;
+      setSuccess(message);
       setCardUid('');
       await fetchAttendees();
     } catch (error) {

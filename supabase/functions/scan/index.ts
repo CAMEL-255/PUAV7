@@ -12,6 +12,7 @@ interface ScanResponse {
   student?: any;
   attendance_id?: string;
   error?: string;
+  card_created?: boolean;
 }
 
 const corsHeaders = {
@@ -59,30 +60,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Find the card and associated student
-    const { data: card, error: cardError } = await supabase
-      .from('cards')
-      .select(`
-        *,
-        students (*)
-      `)
-      .eq('card_uid', card_uid)
-      .eq('is_active', true)
-      .single();
-
-    if (cardError || !card) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "card_not_found" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const student = card.students;
-
-    // Find gateway and device
+    // Find gateway and device first
     const [gatewayRes, deviceRes] = await Promise.all([
       supabase.from('gateways').select('id').eq('code', gateway_code).single(),
       supabase.from('devices').select('id').eq('device_code', device_code).single()
@@ -100,6 +78,91 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const gateway_id = gatewayRes.data.id;
     const device_id = deviceRes.data.id;
+
+    // Try to find existing card
+    let { data: card, error: cardError } = await supabase
+      .from('cards')
+      .select(`
+        *,
+        students (*)
+      `)
+      .eq('card_uid', card_uid)
+      .eq('is_active', true)
+      .single();
+
+    let cardCreated = false;
+    let student = null;
+
+    if (cardError || !card) {
+      // Card doesn't exist, try to find student by student_id (assuming card_uid contains student_id)
+      // First, try to extract student_id from card_uid (remove NFC prefix if exists)
+      let studentId = card_uid;
+      if (card_uid.startsWith('NFC')) {
+        // For demo cards like NFC001234567890, we need to map to actual student IDs
+        const demoCardMapping: { [key: string]: string } = {
+          'NFC001234567890': 'STU001',
+          'NFC001234567891': 'STU002', 
+          'NFC001234567892': 'STU003',
+          'NFC001234567893': 'STU004',
+          'NFC001234567894': 'STU005',
+          'NFC001234567895': 'STU006',
+          'NFC001234567896': 'STU007',
+          'NFC001234567897': 'STU008'
+        };
+        studentId = demoCardMapping[card_uid] || card_uid;
+      }
+
+      // Find student by student_id
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('student_id', studentId)
+        .single();
+
+      if (studentError || !studentData) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "student_not_found" }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      student = studentData;
+
+      // Create new card record
+      const { data: newCard, error: createCardError } = await supabase
+        .from('cards')
+        .insert([
+          {
+            card_uid: card_uid,
+            student_id: student.id,
+            is_active: true,
+          }
+        ])
+        .select(`
+          *,
+          students (*)
+        `)
+        .single();
+
+      if (createCardError) {
+        console.error('Error creating card:', createCardError);
+        return new Response(
+          JSON.stringify({ ok: false, error: "card_creation_failed" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      card = newCard;
+      cardCreated = true;
+    }
+
+    student = card.students;
 
     // If lecture_id is provided, check for duplicate attendance
     if (lecture_id) {
@@ -173,6 +236,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         attendance_id: attendance.id,
         status,
         scanned_at: attendance.scanned_at,
+        card_created: cardCreated,
       } as ScanResponse),
       {
         status: 200,

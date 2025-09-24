@@ -72,10 +72,11 @@ export default function SecurityDashboard() {
     setScannedStudent(null);
 
     try {
-      const response = await fetch('/api/scan', {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
           card_uid: uid,
@@ -87,59 +88,24 @@ export default function SecurityDashboard() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Scan failed');
+        if (result.error === 'student_not_found') {
+          throw new Error('Student not found. Please ensure the card UID matches a registered student ID.');
+        } else if (result.error === 'gateway_or_device_not_found') {
+          throw new Error('Gateway or device not configured properly.');
+        } else {
+          throw new Error(result.error || 'Scan failed');
+        }
       }
 
       setScannedStudent(result.student);
-      setSuccess(
-        `Entry recorded for ${result.student.first_name} ${result.student.last_name}`
-      );
+      const message = result.card_created 
+        ? `New card registered and entry recorded for ${result.student.first_name} ${result.student.last_name}`
+        : `Entry recorded for ${result.student.first_name} ${result.student.last_name}`;
+      setSuccess(message);
       setCardUid('');
       await fetchRecentEntries();
     } catch (error) {
-      try {
-        const { data: card } = await supabase
-          .from('cards')
-          .select(
-            `
-            *,
-            students (*)
-          `
-          )
-          .eq('card_uid', uid)
-          .single();
-
-        if (card && card.students) {
-          const student = card.students as Student;
-
-          const { error: attendanceError } = await supabase
-            .from('attendance')
-            .insert([
-              {
-                student_id: student.id,
-                card_id: card.id,
-                gateway_id: 'gateway_id_placeholder',
-                device_id: 'device_id_placeholder',
-                status: 'present',
-              },
-            ]);
-
-          if (!attendanceError) {
-            setScannedStudent(student);
-            setSuccess(
-              `Entry recorded for ${student.first_name} ${student.last_name}`
-            );
-            setCardUid('');
-            await fetchRecentEntries();
-          } else {
-            throw new Error('Failed to record attendance');
-          }
-        } else {
-          throw new Error('Card not found');
-        }
-      } catch (fallbackError) {
-        setError('Card not found or scan failed');
-      }
+      setError(error instanceof Error ? error.message : 'Scan failed');
     } finally {
       setLoading(false);
     }
