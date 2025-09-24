@@ -79,58 +79,51 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const gateway_id = gatewayRes.data.id;
     const device_id = deviceRes.data.id;
 
-    // Try to find existing card
+    // Map card UID to student ID (for demo cards)
+    let studentId = card_uid;
+    if (card_uid.startsWith('NFC')) {
+      const demoCardMapping: { [key: string]: string } = {
+        'NFC001234567890': 'STU001',
+        'NFC001234567891': 'STU002', 
+        'NFC001234567892': 'STU003',
+        'NFC001234567893': 'STU004',
+        'NFC001234567894': 'STU005',
+        'NFC001234567895': 'STU006',
+        'NFC001234567896': 'STU007',
+        'NFC001234567897': 'STU008'
+      };
+      studentId = demoCardMapping[card_uid] || card_uid;
+    }
+
+    // Find student by student_id
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('student_id', studentId)
+      .single();
+
+    if (studentError || !student) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "student_not_found" }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Check if card exists, if not create it
     let { data: card, error: cardError } = await supabase
       .from('cards')
-      .select(`
-        *,
-        students (*)
-      `)
+      .select('id')
       .eq('card_uid', card_uid)
-      .eq('is_active', true)
+      .eq('student_id', student.id)
       .single();
 
     let cardCreated = false;
-    let student = null;
+    let card_id = card?.id;
 
     if (cardError || !card) {
-      // Card doesn't exist, try to find student by student_id (assuming card_uid contains student_id)
-      // First, try to extract student_id from card_uid (remove NFC prefix if exists)
-      let studentId = card_uid;
-      if (card_uid.startsWith('NFC')) {
-        // For demo cards like NFC001234567890, we need to map to actual student IDs
-        const demoCardMapping: { [key: string]: string } = {
-          'NFC001234567890': 'STU001',
-          'NFC001234567891': 'STU002', 
-          'NFC001234567892': 'STU003',
-          'NFC001234567893': 'STU004',
-          'NFC001234567894': 'STU005',
-          'NFC001234567895': 'STU006',
-          'NFC001234567896': 'STU007',
-          'NFC001234567897': 'STU008'
-        };
-        studentId = demoCardMapping[card_uid] || card_uid;
-      }
-
-      // Find student by student_id
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('student_id', studentId)
-        .single();
-
-      if (studentError || !studentData) {
-        return new Response(
-          JSON.stringify({ ok: false, error: "student_not_found" }),
-          {
-            status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      student = studentData;
-
       // Create new card record
       const { data: newCard, error: createCardError } = await supabase
         .from('cards')
@@ -141,10 +134,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             is_active: true,
           }
         ])
-        .select(`
-          *,
-          students (*)
-        `)
+        .select('id')
         .single();
 
       if (createCardError) {
@@ -158,11 +148,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         );
       }
 
-      card = newCard;
+      card_id = newCard.id;
       cardCreated = true;
     }
-
-    student = card.students;
 
     // If lecture_id is provided, check for duplicate attendance
     if (lecture_id) {
@@ -195,13 +183,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       status = 'present'; // Simplified for demo
     }
 
-    // Record attendance
+    // Record attendance - this is the main logging action
     const { data: attendance, error: attendanceError } = await supabase
       .from('attendance')
       .insert([
         {
           student_id: student.id,
-          card_id: card.id,
+          card_id: card_id,
           lecture_id: lecture_id || null,
           gateway_id,
           device_id,
