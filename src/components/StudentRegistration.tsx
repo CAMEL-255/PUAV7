@@ -109,6 +109,7 @@ export default function StudentRegistration({ onBack }: StudentRegistrationProps
             department: formData.department,
             email: formData.email,
             phone: formData.phone || null,
+            role: 'student',
           }
         ]);
 
