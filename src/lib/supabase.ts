@@ -25,6 +25,8 @@ export type Database = {
           phone: string | null;
           created_at: string;
           updated_at: string;
+          auth_id: string | null;
+          role: string;
         };
         Insert: {
           id?: string;
@@ -38,6 +40,8 @@ export type Database = {
           phone?: string | null;
           created_at?: string;
           updated_at?: string;
+          auth_id?: string | null;
+          role: string;
         };
         Update: {
           id?: string;
@@ -51,6 +55,8 @@ export type Database = {
           phone?: string | null;
           created_at?: string;
           updated_at?: string;
+          auth_id?: string | null;
+          role?: string;
         };
       };
       cards: {
