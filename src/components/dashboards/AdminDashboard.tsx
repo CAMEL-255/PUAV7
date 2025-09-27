@@ -13,7 +13,9 @@ import {
   Upload,
   Edit,
   Trash2,
-  Eye
+  Eye,
+  X,
+  Save
 } from 'lucide-react';
 
 interface Stats {
@@ -41,6 +43,8 @@ interface Course {
   faculty: string;
   department: string;
   credits: number;
+  semester: string | null;
+  year: string | null;
 }
 
 export default function AdminDashboard() {
@@ -56,6 +60,19 @@ export default function AdminDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [courseForm, setCourseForm] = useState({
+    course_code: '',
+    title: '',
+    faculty: '',
+    department: '',
+    credits: 3,
+    semester: '',
+    year: '',
+  });
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     fetchStats();
@@ -123,6 +140,130 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleAddCourse = () => {
+    setCourseForm({
+      course_code: '',
+      title: '',
+      faculty: '',
+      department: '',
+      credits: 3,
+      semester: '',
+      year: '',
+    });
+    setEditingCourse(null);
+    setShowCourseModal(true);
+    setError('');
+    setSuccess('');
+  };
+
+  const handleEditCourse = (course: Course) => {
+    setCourseForm({
+      course_code: course.course_code,
+      title: course.title,
+      faculty: course.faculty,
+      department: course.department,
+      credits: course.credits,
+      semester: course.semester || '',
+      year: course.year || '',
+    });
+    setEditingCourse(course);
+    setShowCourseModal(true);
+    setError('');
+    setSuccess('');
+  };
+
+  const handleSaveCourse = async () => {
+    setError('');
+    setSuccess('');
+
+    if (!courseForm.course_code || !courseForm.title || !courseForm.faculty || !courseForm.department) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const courseData = {
+        course_code: courseForm.course_code,
+        title: courseForm.title,
+        faculty: courseForm.faculty,
+        department: courseForm.department,
+        credits: courseForm.credits,
+        semester: courseForm.semester || null,
+        year: courseForm.year || null,
+      };
+
+      if (editingCourse) {
+        // Update existing course
+        const { error } = await supabase
+          .from('courses')
+          .update(courseData)
+          .eq('id', editingCourse.id);
+
+        if (error) throw error;
+        setSuccess('Course updated successfully');
+      } else {
+        // Create new course
+        const { error } = await supabase
+          .from('courses')
+          .insert([courseData]);
+
+        if (error) throw error;
+        setSuccess('Course created successfully');
+      }
+
+      await fetchCourses();
+      await fetchStats();
+      
+      setTimeout(() => {
+        setShowCourseModal(false);
+        setSuccess('');
+      }, 1500);
+    } catch (error: any) {
+      setError(error.message || 'Failed to save course');
+    }
+  };
+
+  const handleDeleteCourse = async (course: Course) => {
+    if (!confirm(`Are you sure you want to delete "${course.title}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .delete()
+        .eq('id', course.id);
+
+      if (error) throw error;
+      
+      await fetchCourses();
+      await fetchStats();
+      setSuccess('Course deleted successfully');
+      
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error: any) {
+      setError(error.message || 'Failed to delete course');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const faculties = [
+    'Engineering',
+    'Business',
+    'Medicine',
+    'Arts & Sciences',
+    'Law',
+    'Education',
+  ];
+
+  const departmentsByFaculty: Record<string, string[]> = {
+    'Engineering': ['Computer Science', 'Electrical Engineering', 'Mechanical Engineering', 'Civil Engineering'],
+    'Business': ['Management', 'Finance', 'Marketing', 'Accounting'],
+    'Medicine': ['General Medicine', 'Nursing', 'Pharmacy', 'Dentistry'],
+    'Arts & Sciences': ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History'],
+    'Law': ['Criminal Law', 'Corporate Law', 'International Law'],
+    'Education': ['Elementary Education', 'Secondary Education', 'Special Education'],
+  };
   const filteredStudents = students.filter(student =>
     student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -334,6 +475,7 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-900">Course Management</h2>
             <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              onClick={handleAddCourse}
               <Plus className="h-4 w-4" />
               Add Course
             </button>
@@ -367,12 +509,15 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-600 mb-3">{course.faculty} - {course.department}</p>
                 <div className="flex gap-2">
                   <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
+                    onClick={() => handleEditCourse(course)}
                     <Eye className="h-4 w-4" />
                   </button>
                   <button className="p-1 text-gray-400 hover:text-green-600 transition-colors">
+                    onClick={() => handleEditCourse(course)}
                     <Edit className="h-4 w-4" />
                   </button>
                   <button className="p-1 text-gray-400 hover:text-red-600 transition-colors">
+                    onClick={() => handleDeleteCourse(course)}
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
