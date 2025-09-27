@@ -26,6 +26,11 @@ interface Lecture {
   end_time: string;
   status: string;
   course: Course;
+  gateway?: {
+    code: string;
+    display_name: string;
+    location: string;
+  };
 }
 
 interface Student {
@@ -73,7 +78,12 @@ export default function TeacherDashboard() {
         .select(
           `
           *,
-          courses (*)
+          courses (*),
+          gateways:gateway_id (
+            code,
+            display_name,
+            location
+          )
         `
         )
         .eq('staff_id', staff?.id)
@@ -86,6 +96,7 @@ export default function TeacherDashboard() {
         data.map((lecture) => ({
           ...lecture,
           course: lecture.courses as Course,
+          gateway: lecture.gateways,
         }))
       );
     } catch (error) {
@@ -146,7 +157,7 @@ export default function TeacherDashboard() {
         body: JSON.stringify({
           card_uid: cardUid,
           device_code: 'DEV002', // Different device for teacher
-          gateway_code: 'CLASSROOM_01', // Classroom gateway
+          gateway_code: selectedLecture.gateway?.code || 'CLASSROOM_01', // Use lecture's gateway
           lecture_id: selectedLecture.id,
         }),
       });
@@ -271,6 +282,9 @@ export default function TeacherDashboard() {
               <p className="text-sm text-gray-600 mb-2">
                 {lecture.course.course_code} - {lecture.course.title}
               </p>
+              <p className="text-xs text-gray-500 mb-2">
+                📍 {lecture.gateway?.display_name || 'Classroom'}
+              </p>
               <div className="flex items-center gap-1 text-sm text-gray-500">
                 <Clock className="h-4 w-4" />
                 {formatDateTime(lecture.start_time)}
@@ -327,6 +341,9 @@ export default function TeacherDashboard() {
               {selectedLecture.course.course_code} -{' '}
               {selectedLecture.course.title}
             </p>
+            <p className="text-green-600 text-xs">
+              📍 {selectedLecture.gateway?.display_name || 'Classroom'} - {selectedLecture.gateway?.location || 'Campus'}
+            </p>
           </div>
 
           <div className="max-w-md mx-auto space-y-4">
@@ -365,6 +382,10 @@ export default function TeacherDashboard() {
                   'NFC001234567891',
                   'NFC001234567892',
                   'NFC001234567893',
+                  'NFC001234567894',
+                  'NFC001234567895',
+                  'NFC001234567896',
+                  'NFC001234567897',
                 ].map((uid) => (
                   <button
                     key={uid}
