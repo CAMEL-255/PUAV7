@@ -474,8 +474,10 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl shadow-sm p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-900">Course Management</h2>
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <button 
               onClick={handleAddCourse}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
               <Plus className="h-4 w-4" />
               Add Course
             </button>
@@ -508,16 +510,22 @@ export default function AdminDashboard() {
                 <h4 className="text-sm font-medium text-gray-800 mb-2">{course.title}</h4>
                 <p className="text-sm text-gray-600 mb-3">{course.faculty} - {course.department}</p>
                 <div className="flex gap-2">
-                  <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
+                  <button 
                     onClick={() => handleEditCourse(course)}
+                    className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                  >
                     <Eye className="h-4 w-4" />
                   </button>
-                  <button className="p-1 text-gray-400 hover:text-green-600 transition-colors">
+                  <button 
                     onClick={() => handleEditCourse(course)}
+                    className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                  >
                     <Edit className="h-4 w-4" />
                   </button>
-                  <button className="p-1 text-gray-400 hover:text-red-600 transition-colors">
+                  <button 
                     onClick={() => handleDeleteCourse(course)}
+                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -530,6 +538,166 @@ export default function AdminDashboard() {
               <p className="text-gray-500">No courses found</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Course Modal */}
+      {showCourseModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {editingCourse ? 'Edit Course' : 'Add New Course'}
+                </h3>
+                <button
+                  onClick={() => setShowCourseModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                  <p className="text-red-700 text-sm">{error}</p>
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                  <p className="text-green-700 text-sm">{success}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Course Code *
+                  </label>
+                  <input
+                    type="text"
+                    value={courseForm.course_code}
+                    onChange={(e) => setCourseForm(prev => ({ ...prev, course_code: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., CS101"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Course Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={courseForm.title}
+                    onChange={(e) => setCourseForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., Introduction to Computer Science"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Faculty *
+                  </label>
+                  <select
+                    value={courseForm.faculty}
+                    onChange={(e) => setCourseForm(prev => ({ ...prev, faculty: e.target.value, department: '' }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select Faculty</option>
+                    {faculties.map((faculty) => (
+                      <option key={faculty} value={faculty}>
+                        {faculty}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {courseForm.faculty && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Department *
+                    </label>
+                    <select
+                      value={courseForm.department}
+                      onChange={(e) => setCourseForm(prev => ({ ...prev, department: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Department</option>
+                      {departmentsByFaculty[courseForm.faculty]?.map((department) => (
+                        <option key={department} value={department}>
+                          {department}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Credits
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="6"
+                    value={courseForm.credits}
+                    onChange={(e) => setCourseForm(prev => ({ ...prev, credits: parseInt(e.target.value) || 3 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Semester
+                    </label>
+                    <select
+                      value={courseForm.semester}
+                      onChange={(e) => setCourseForm(prev => ({ ...prev, semester: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Semester</option>
+                      <option value="Fall">Fall</option>
+                      <option value="Spring">Spring</option>
+                      <option value="Summer">Summer</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Year
+                    </label>
+                    <input
+                      type="text"
+                      value={courseForm.year}
+                      onChange={(e) => setCourseForm(prev => ({ ...prev, year: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., 2024"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowCourseModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveCourse}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Save className="h-4 w-4" />
+                  {editingCourse ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
